@@ -67,9 +67,9 @@ Enable WSL integration.
 
 In PowerShell:
 
-    ```bash
-    wsl --install
-    ```
+```bash
+wsl --install
+```
 
 Install Ubuntu from Microsoft Store.
 
