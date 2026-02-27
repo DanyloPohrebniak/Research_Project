@@ -77,57 +77,61 @@ Install Ubuntu from Microsoft Store.
 
 In Ubuntu terminal:
 
-    ```bash
-    sudo apt update
-    sudo apt install python3-venv python3-pip -y
+```bash
+sudo apt update
+sudo apt install python3-venv python3-pip -y
 
-    python3 -m venv venv
-    source venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 
-    pip install "tutor[full]"
-    ```
+pip install "tutor[full]"
+```
 
 ### 4. Initialize Open edX
 
-    ```bash
-    tutor config save
-    tutor local launch
-    ```
+```bash
+tutor config save
+tutor local launch
+```
 
 Wait until all services are initialized.
 
 ### 5. Configure hosts file
 
 Edit:
-    ```bash
-    C:\Windows\System32\drivers\etc\hosts
-    ```
+
+```bash
+C:\Windows\System32\drivers\etc\hosts
+```
 
 In the end add:
 
-    ```bash
-    127.0.0.1 local.openedx.io
-    127.0.0.1 studio.local.openedx.io
-    ```
+```bash
+127.0.0.1 local.openedx.io
+127.0.0.1 studio.local.openedx.io
+```
 
 ### 6. Access the platform
 
 LMS:
-    ```bash
-    http://local.openedx.io
-    ```
+
+```bash
+http://local.openedx.io
+```
 
 Studio:
-    ```bash
-    http://studio.local.openedx.io
-    ```
+
+```bash
+http://studio.local.openedx.io
+```
 
 ## Creating Admin User
 
 Run:
-    ```bash
-    tutor local do createuser --staff --superuser admin admin@example.com
-    ```
+
+```bash
+tutor local do createuser --staff --superuser admin admin@example.com
+```
 
 
 ## Running the Platform
