@@ -82,7 +82,7 @@ async def chat(
     # Call Gemini
     try:
         response = gemini.models.generate_content(
-            model="gemini-2.0-flash", # version of model
+            model="gemini-1.5-flash", # version of model
             contents=[
                 *[f"{m['role']}: {m['parts'][0]}" for m in history],
                 f"user: {request.message}"

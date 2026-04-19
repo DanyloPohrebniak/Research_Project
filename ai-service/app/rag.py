@@ -11,6 +11,8 @@ from pymongo import MongoClient
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
+os.environ["ANONYMIZED_TELEMETRY"] = "false"
+
 MONGO_URL = os.getenv(
     "MONGODB_URL",
     "mongodb://openedx:password@mongodb:27017"
@@ -25,7 +27,10 @@ def get_collection():
     if _collection is None:
         chroma = chromadb.PersistentClient(
             path=CHROMA_DIR,
-            settings=Settings(anonymized_telemetry=False)
+            settings=Settings(
+                anonymized_telemetry=False,
+                allow_reset=True
+            )
         )
         _collection = chroma.get_or_create_collection(
             name="course_content",
