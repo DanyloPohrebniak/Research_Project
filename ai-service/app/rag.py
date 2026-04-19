@@ -5,29 +5,29 @@ from typing import Optional
 
 import chromadb
 from chromadb.config import Settings
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from pymongo import MongoClient
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 MONGO_URL = os.getenv(
     "MONGODB_URL",
     "mongodb://openedx:password@mongodb:27017"
 )
-CHROMA_DIR = os.getenv("CHROMA_DIR", "/data/chroma")
+CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma_data")
 
 _collection = None
 
 
 def get_collection():
-    """Get or create ChromaDB collection."""
     global _collection
     if _collection is None:
-        client = chromadb.PersistentClient(
+        chroma = chromadb.PersistentClient(
             path=CHROMA_DIR,
             settings=Settings(anonymized_telemetry=False)
         )
-        _collection = client.get_or_create_collection(
+        _collection = chroma.get_or_create_collection(
             name="course_content",
             metadata={"hnsw:space": "cosine"}
         )
@@ -35,17 +35,14 @@ def get_collection():
 
 
 def get_embedding(text: str) -> list[float]:
-    """Generate embedding using Gemini."""
-    result = genai.embed_content(
-        model="models/text-embedding-004",
-        content=text,
-        task_type="retrieval_document"
+    result = client.models.embed_content(
+        model="models/gemini-embedding-001",
+        contents=text,
     )
-    return result["embedding"]
+    return result.embeddings[0].values
 
 
 def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> list[str]:
-    """Split text into overlapping chunks."""
     words = text.split()
     chunks = []
     step = chunk_size - overlap
@@ -57,11 +54,6 @@ def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> list[str
 
 
 def index_course(course_id: str) -> int:
-    """
-    Read course content from Open edX MongoDB
-    and index it into ChromaDB.
-    Returns number of chunks indexed.
-    """
     mongo = MongoClient(MONGO_URL)
     db = mongo["edxapp"]
     collection = get_collection()
@@ -92,7 +84,6 @@ def index_course(course_id: str) -> int:
                 doc_id = hashlib.md5(
                     f"{block_id}_{i}".encode()
                 ).hexdigest()
-
                 collection.upsert(
                     ids=[doc_id],
                     embeddings=[get_embedding(chunk)],
@@ -114,17 +105,12 @@ def retrieve_context(
     course_id: Optional[str] = None,
     top_k: int = 4
 ) -> str:
-    """
-    Find relevant course content for a query.
-    Returns combined text of top matching chunks.
-    """
     collection = get_collection()
 
-    query_embedding = genai.embed_content(
-        model="models/text-embedding-004",
-        content=query,
-        task_type="retrieval_query"
-    )["embedding"]
+    query_embedding = client.models.embed_content(
+        model="models/gemini-embedding-001",
+        contents=query,
+    ).embeddings[0].values
 
     results = collection.query(
         query_embeddings=[query_embedding],
