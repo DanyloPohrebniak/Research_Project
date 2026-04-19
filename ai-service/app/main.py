@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db import init_db
+from app.chat import router as chat_router
 
 app = FastAPI(
     title="VLE AI Assistant",
@@ -17,10 +18,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(chat_router, prefix="/api/v1")
+
 
 @app.on_event("startup")
 async def startup():
-    """Initialize database tables on startup."""
     await init_db()
 
 
