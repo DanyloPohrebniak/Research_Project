@@ -6,16 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
-from google import genai
-from google.genai import types
-
+from groq import Groq
 
 from app.db import get_db, ChatMessage
 from app.rag import retrieve_context
 from app.auth import get_current_user
-
-gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 router = APIRouter()
 
@@ -48,7 +43,6 @@ async def get_history(
     db: AsyncSession,
     limit: int = 10
 ) -> list[dict]:
-    """Fetch recent chat history for a session."""
     result = await db.execute(
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
@@ -57,7 +51,8 @@ async def get_history(
     )
     messages = result.scalars().all()
     return [
-        {"role": m.role, "parts": [m.content]}
+        {"role": m.role if m.role != "model" else "assistant",
+         "content": m.content}
         for m in reversed(messages)
     ]
 
@@ -70,34 +65,35 @@ async def chat(
 ):
     session_id = request.session_id or str(uuid.uuid4())
 
-    # Retrieve relevant course content
+    # 1. Retrieve relevant course content
     context = retrieve_context(request.message, course_id=request.course_id)
 
-    # Build system prompt with context
+    # 2. Build system prompt with context
     system = SYSTEM_PROMPT
     if context:
         system += f"\n\n=== COURSE CONTENT ===\n{context}\n=== END ==="
 
-    # Get conversation history
+    # 3. Get conversation history
     history = await get_history(session_id, db)
 
-    # Call Gemini
+    # 4. Call Groq
     try:
-        response = gemini.models.generate_content(
-            model="gemini-1.5-flash", # version of model
-            contents=[
-                *[f"{m['role']}: {m['parts'][0]}" for m in history],
-                f"user: {request.message}"
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-            )
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        messages = [
+            {"role": "system", "content": system},
+            *history,
+            {"role": "user", "content": request.message}
+        ]
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            max_tokens=1024,
         )
-        reply = response.text
+        reply = response.choices[0].message.content
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # Save to database
+    # 5. Save to database
     db.add(ChatMessage(
         session_id=session_id,
         user_id=request.user_id,
