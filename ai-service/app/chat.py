@@ -13,6 +13,7 @@ from google.genai import types
 
 from app.db import get_db, ChatMessage
 from app.rag import retrieve_context
+from app.auth import get_current_user
 
 gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -64,7 +65,8 @@ async def get_history(
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     session_id = request.session_id or str(uuid.uuid4())
 
