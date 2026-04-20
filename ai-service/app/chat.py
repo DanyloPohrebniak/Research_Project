@@ -7,12 +7,15 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from groq import Groq
+import logging
 
 from app.db import get_db, ChatMessage
 from app.rag import retrieve_context
 from app.auth import get_current_user
 
 router = APIRouter()
+
+logger = logging.getLogger("vle-ai.chat")
 
 SYSTEM_PROMPT = """You are an AI learning assistant integrated into an Open edX course platform.
 Your role is to help students understand course materials, answer questions, and guide their learning.
@@ -65,19 +68,20 @@ async def chat(
 ):
     session_id = request.session_id or str(uuid.uuid4())
 
-    # 1. Retrieve relevant course content
+    # Retrieve relevant course content
     context = retrieve_context(request.message, course_id=request.course_id)
 
-    # 2. Build system prompt with context
+    # Build system prompt with context
     system = SYSTEM_PROMPT
     if context:
         system += f"\n\n=== COURSE CONTENT ===\n{context}\n=== END ==="
 
-    # 3. Get conversation history
+    # Get conversation history
     history = await get_history(session_id, db)
 
-    # 4. Call Groq
+    # Call Groq
     try:
+        logger.info(f"Chat request | user={request.user_id} session={session_id} course={request.course_id}")
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         messages = [
             {"role": "system", "content": system},
@@ -90,7 +94,9 @@ async def chat(
             max_tokens=1024,
         )
         reply = response.choices[0].message.content
+        logger.info(f"Chat response | user={request.user_id} tokens={response.usage.total_tokens}")
     except Exception as e:
+        logger.error(f"Chat error | user={request.user_id} error={str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     # 5. Save to database
