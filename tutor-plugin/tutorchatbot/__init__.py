@@ -45,8 +45,9 @@ chatbot:
     GEMINI_API_KEY: "{{ CHATBOT_GEMINI_API_KEY }}"
     GROQ_API_KEY: "{{ CHATBOT_GROQ_API_KEY }}"
     DATABASE_URL: "postgresql+asyncpg://{{ CHATBOT_DB_USER }}:{{ CHATBOT_DB_PASSWORD }}@chatbot-db:5432/{{ CHATBOT_DB_NAME }}"
-    MONGODB_URL: "mongodb://{{ MONGODB_USERNAME }}:{{ MONGODB_PASSWORD }}@mongodb:27017"
+    MONGODB_URL: "mongodb://mongodb:27017"
     DEV_MODE: "true"
+    CHROMA_DIR: "/app/chroma_data"
 
 chatbot-db:
   image: postgres:16-alpine
@@ -62,3 +63,13 @@ chatbot-db:
 hooks.Filters.ENV_TEMPLATE_ROOTS.add_item(
     os.path.join(os.path.dirname(__file__), "templates")
 )
+
+# Caddy patch — proxy /chatbot-api/ to chatbot service
+hooks.Filters.ENV_PATCHES.add_item((
+    "caddyfile-lms",
+    """
+    handle_path /chatbot-api/* {
+        reverse_proxy chatbot:8000
+    }
+"""
+))

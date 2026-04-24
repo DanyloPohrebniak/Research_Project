@@ -138,3 +138,16 @@ async def get_chat_history(
         }
         for m in messages
     ]
+
+@router.post("/index-course")
+async def index_course_endpoint(course_id: str):
+    """Index course content into ChromaDB for RAG."""
+    from app.rag import index_course
+    try:
+        logger.info(f"Indexing course: {course_id}")
+        count = index_course(course_id)
+        logger.info(f"Indexed {count} chunks for course {course_id}")
+        return {"status": "ok", "chunks_indexed": count, "course_id": course_id}
+    except Exception as e:
+        logger.error(f"Indexing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
