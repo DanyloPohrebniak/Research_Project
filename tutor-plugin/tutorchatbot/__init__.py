@@ -62,15 +62,3 @@ chatbot-db:
 hooks.Filters.ENV_TEMPLATE_ROOTS.add_item(
     os.path.join(os.path.dirname(__file__), "templates")
 )
-
-# Auto-copy footer with chatbot widget to theme templates
-@hooks.Actions.ENV_GENERATED.add()
-def copy_footer(*args, **kwargs):
-    import shutil
-    src = os.path.join(os.path.dirname(__file__), "templates", "tutorchatbot", "footer.html")
-    dst = os.path.expanduser(
-        "~/.local/share/tutor/env/build/openedx/themes/indigo/lms/templates/footer.html"
-    )
-    if os.path.exists(src):
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        shutil.copy2(src, dst)
