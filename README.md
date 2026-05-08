@@ -12,6 +12,8 @@ Research project implementing a Virtual Learning Environment (VLE) based on Open
 
 This project provides a fully functional Learning Management System using Open edX, extended with an AI-powered assistant designed to help students interact with course materials.
 
+The assistant uses a RAG (Retrieval-Augmented Generation) pipeline to read actual course content and provide contextually relevant answers. A floating chat widget is embedded on every LMS page, allowing students to ask questions without leaving their course.
+ 
 The system follows a microservice architecture and integrates modern AI technologies.
 
 ## Features
@@ -20,39 +22,47 @@ The system follows a microservice architecture and integrates modern AI technolo
 - Course creation and management
 - Student enrollment
 - Web-based learning interface
+- Floating AI chat widget on every LMS page
+- RAG pipeline — assistant reads real course materials
+- Context-aware responses based on current course
+- Persistent chat history per user and session
+- Custom Tutor plugin for LMS integration
 - Docker-based deployment
-- AI assistant integration (in progress)
-- Scalable architecture
 
 ## Architecture
 
 System architecture:
 
+```
 User Browser
 ↓
-Open edX LMS
+Open edX LMS (Tutor)
 ↓
-AI Assistant Service
+AI Assistant Service (FastAPI)
 ↓
-LLM API
+Groq API (Llama 3.3 70B)
+```
 
 ## Technology Stack
 
 - Open edX
 - Docker
 - Tutor
-- Python
+- Python 3.11
 - FastAPI
-- OpenAI API
+- Groq API (Llama 3.3 70B)
+- Gemini Embeddings
+- ChromaDB
+- PostgreSQL
 - WSL2 (Windows)
-- Ubuntu
+- Ubuntu 22.04
 
 ## Requirements
 
 - Docker Desktop
 - WSL2
 - Ubuntu 22.04
-- Python 3.10+
+- Python 3.11+
 - Tutor
 
 ## Installation Guide
