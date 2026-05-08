@@ -99,7 +99,7 @@ async def chat(
         logger.error(f"Chat error | user={request.user_id} error={str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    # 5. Save to database
+    #  Save to database
     db.add(ChatMessage(
         session_id=session_id,
         user_id=request.user_id,
