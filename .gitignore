@@ -38,3 +38,5 @@ node_modules/
 
 .local/
 ~/.local/share/tutor/
+
+tutor-plugin/tutor_contrib_chatbot.egg-info

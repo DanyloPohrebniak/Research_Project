@@ -22,6 +22,16 @@ CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma_data")
 _collection = None
 
 
+def _normalize_course_id(course_id: str) -> str:
+    """Canonical form: course-v1:ORG+COURSE+RUN (URL-decoded spaces → +)."""
+    if not course_id:
+        return course_id
+    prefix = "course-v1:"
+    if course_id.startswith(prefix):
+        return prefix + course_id[len(prefix):].replace(" ", "+")
+    return course_id.replace(" ", "+")
+
+
 def get_collection():
     global _collection
     if _collection is None:
@@ -59,47 +69,88 @@ def chunk_text(text: str, chunk_size: int = 800, overlap: int = 100) -> list[str
 
 
 def index_course(course_id: str) -> int:
+    course_id = _normalize_course_id(course_id)
     mongo = MongoClient(MONGO_URL)
-    db = mongo["edxapp"]
+    db = mongo["openedx"]
     collection = get_collection()
     total = 0
 
-    structures = db["modulestore.structures"].find(
-        {}, {"blocks": 1}
-    ).limit(50)
+    # Parse "course-v1:ORG+COURSE+RUN"
+    try:
+        parts = course_id.replace("course-v1:", "").split("+")
+        org, course, run = parts[0], parts[1], parts[2]
+    except (IndexError, ValueError):
+        mongo.close()
+        return 0
 
-    for structure in structures:
-        for block_id, block in structure.get("blocks", {}).items():
-            block_type = block.get("block_type", "")
-            fields = block.get("fields", {})
+    # Find the published structure for this specific course
+    active = db["modulestore.active_versions"].find_one(
+        {"org": org, "course": course, "run": run}
+    )
+    if not active:
+        mongo.close()
+        return 0
 
-            text = ""
-            if block_type == "html":
-                text = re.sub(r"<[^>]+>", " ", fields.get("data", ""))
-            elif block_type == "problem":
-                text = re.sub(r"<[^>]+>", " ", fields.get("data", ""))
-            elif block_type == "video":
-                text = fields.get("display_name", "")
+    structure_id = active.get("versions", {}).get("published-branch")
+    if not structure_id:
+        mongo.close()
+        return 0
 
-            text = text.strip()
-            if len(text) < 50:
-                continue
+    structure = db["modulestore.structures"].find_one({"_id": structure_id})
+    if not structure:
+        mongo.close()
+        return 0
 
-            for i, chunk in enumerate(chunk_text(text)):
-                doc_id = hashlib.md5(
-                    f"{block_id}_{i}".encode()
-                ).hexdigest()
-                collection.upsert(
-                    ids=[doc_id],
-                    embeddings=[get_embedding(chunk)],
-                    documents=[chunk],
-                    metadatas=[{
-                        "course_id": course_id,
-                        "block_id": str(block_id),
-                        "block_type": block_type,
-                    }]
-                )
-                total += 1
+    blocks = structure.get("blocks", {})
+    if isinstance(blocks, dict):
+        blocks_list = list(blocks.values())
+    else:
+        blocks_list = blocks
+
+    for block in blocks_list:
+        block_type = block.get("block_type", "")
+        if block_type not in ["html", "problem", "video"]:
+            continue
+
+        block_id = str(block.get("block_id", block.get("_id", "")))
+        fields = block.get("fields", {})
+
+        # Content lives in definitions; structure-side fields only carry metadata
+        if block.get("definition"):
+            definition = db["modulestore.definitions"].find_one(
+                {"_id": block["definition"]},
+                {"fields": 1}
+            )
+            if definition and definition.get("fields"):
+                fields = definition["fields"]
+
+        text = ""
+        if block_type == "html":
+            text = re.sub(r"<[^>]+>", " ", fields.get("data", ""))
+        elif block_type == "problem":
+            text = re.sub(r"<[^>]+>", " ", fields.get("data", ""))
+        elif block_type == "video":
+            text = fields.get("display_name", "")
+
+        text = text.strip()
+        if len(text) < 50:
+            continue
+
+        for i, chunk in enumerate(chunk_text(text)):
+            doc_id = hashlib.md5(
+                f"{block_id}_{i}".encode()
+            ).hexdigest()
+            collection.upsert(
+                ids=[doc_id],
+                embeddings=[get_embedding(chunk)],
+                documents=[chunk],
+                metadatas=[{
+                    "course_id": course_id,
+                    "block_id": block_id,
+                    "block_type": block_type,
+                }]
+            )
+            total += 1
 
     mongo.close()
     return total
@@ -110,6 +161,7 @@ def retrieve_context(
     course_id: Optional[str] = None,
     top_k: int = 4
 ) -> str:
+    course_id = _normalize_course_id(course_id) if course_id else course_id
     collection = get_collection()
 
     query_embedding = client.models.embed_content(

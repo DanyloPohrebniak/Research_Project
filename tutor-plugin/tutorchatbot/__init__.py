@@ -1,6 +1,6 @@
 from __future__ import annotations
-import pkg_resources
 from tutor import hooks
+import os
 
 __version__ = "0.1.0"
 
@@ -9,9 +9,11 @@ hooks.Filters.CONFIG_DEFAULTS.add_items([
     ("CHATBOT_HOST", "chatbot"),
     ("CHATBOT_PORT", 8000),
     ("CHATBOT_GEMINI_API_KEY", ""),
+    ("CHATBOT_GROQ_API_KEY", ""),
     ("CHATBOT_DB_NAME", "chatbot"),
     ("CHATBOT_DB_USER", "chatbot"),
     ("CHATBOT_DB_PASSWORD", "changeme"),
+    ("GITHUB_USERNAME", "danylopohrebniak"),
 ])
 
 # Unique config (auto-generated)
@@ -19,7 +21,7 @@ hooks.Filters.CONFIG_UNIQUE.add_items([
     ("CHATBOT_DB_PASSWORD", "{{ 24|random_string }}"),
 ])
 
-# Nginx patch — proxy /chatbot-api/ to our service
+# Nginx patch
 hooks.Filters.ENV_PATCHES.add_item((
     "openedx-lms-nginx-configs",
     """
@@ -32,48 +34,42 @@ location /chatbot-api/ {
 """
 ))
 
-# Add chatbot service to docker-compose
+# Add chatbot services to docker-compose
 hooks.Filters.ENV_PATCHES.add_item((
     "local-docker-compose-services",
     """
-  chatbot:
-    image: ghcr.io/{{ GITHUB_USERNAME }}/vle-ai-service:latest
-    restart: unless-stopped
-    environment:
-      GEMINI_API_KEY: "{{ CHATBOT_GEMINI_API_KEY }}"
-      DATABASE_URL: "postgresql+asyncpg://{{ CHATBOT_DB_USER }}:{{ CHATBOT_DB_PASSWORD }}@chatbot-db:5432/{{ CHATBOT_DB_NAME }}"
-      MONGODB_URL: "mongodb://{{ MONGODB_USERNAME }}:{{ MONGODB_PASSWORD }}@mongodb:27017"
-    volumes:
-      - chatbot-chroma:/data/chroma
-    depends_on:
-      - chatbot-db
-    networks:
-      - default
+chatbot:
+  image: ghcr.io/{{ GITHUB_USERNAME }}/vle-ai-service:latest
+  restart: unless-stopped
+  environment:
+    GEMINI_API_KEY: "{{ CHATBOT_GEMINI_API_KEY }}"
+    GROQ_API_KEY: "{{ CHATBOT_GROQ_API_KEY }}"
+    DATABASE_URL: "postgresql+asyncpg://{{ CHATBOT_DB_USER }}:{{ CHATBOT_DB_PASSWORD }}@chatbot-db:5432/{{ CHATBOT_DB_NAME }}"
+    MONGODB_URL: "mongodb://mongodb:27017"
+    DEV_MODE: "true"
+    CHROMA_DIR: "/app/chroma_data"
 
-  chatbot-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: "{{ CHATBOT_DB_USER }}"
-      POSTGRES_PASSWORD: "{{ CHATBOT_DB_PASSWORD }}"
-      POSTGRES_DB: "{{ CHATBOT_DB_NAME }}"
-    volumes:
-      - chatbot-pgdata:/var/lib/postgresql/data
-    networks:
-      - default
-"""
-))
-
-# Add volumes
-hooks.Filters.ENV_PATCHES.add_item((
-    "local-docker-compose-volume-mounts",
-    """
-  chatbot-pgdata:
-  chatbot-chroma:
+chatbot-db:
+  image: postgres:16-alpine
+  restart: unless-stopped
+  environment:
+    POSTGRES_USER: "{{ CHATBOT_DB_USER }}"
+    POSTGRES_PASSWORD: "{{ CHATBOT_DB_PASSWORD }}"
+    POSTGRES_DB: "{{ CHATBOT_DB_NAME }}"
 """
 ))
 
 # Register templates
 hooks.Filters.ENV_TEMPLATE_ROOTS.add_item(
-    pkg_resources.resource_filename("tutorchatbot", "templates")
+    os.path.join(os.path.dirname(__file__), "templates")
 )
+
+# Caddy patch — proxy /chatbot-api/ to chatbot service
+hooks.Filters.ENV_PATCHES.add_item((
+    "caddyfile-lms",
+    """
+    handle_path /chatbot-api/* {
+        reverse_proxy chatbot:8000
+    }
+"""
+))
