@@ -97,7 +97,7 @@ async def chat(
             {"role": "user", "content": request.message}
         ]
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="qwen/qwen3.8-27b",
             messages=messages,
             max_tokens=1024,
         )
