@@ -1,0 +1,40 @@
+services:
+  chatbot:
+    image: ghcr.io/danylopohrebniak/vle-ai-service:latest
+    restart: unless-stopped
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      DATABASE_URL: postgresql+asyncpg://chatbot:${CHATBOT_DB_PASSWORD:-chatbot}@chatbot-db:5432/chatbot
+      MONGODB_URL: mongodb://mongodb:27017
+      CHROMA_DIR: /app/chroma_data
+      DEV_MODE: "false"
+    depends_on:
+      chatbot-db:
+        condition: service_healthy
+    networks:
+      - tutor_local_default
+
+  chatbot-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: ${CHATBOT_DB_PASSWORD:-chatbot}
+      POSTGRES_DB: chatbot
+    volumes:
+      - chatbot-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tutor_local_default
+
+volumes:
+  chatbot-pgdata:
+
+networks:
+  tutor_local_default:
+    external: true
